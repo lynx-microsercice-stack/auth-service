@@ -1,0 +1,106 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /api/v1
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  application:
+    name: auth-service
+  data:
+    redis:
+      host: localhost
+      port: 6002
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8088/realms/lynx-realm
+          jwk-set-uri: http://localhost:8088/realms/lynx-realm/protocol/openid-connect/certs
+          audience: auth-service
+      client:
+        registration:
+          keycloak:
+            client-id: auth-service
+            client-secret: mXBCG3p1RXqryIfa2TVb3BKzXO9wukzK
+            authorization-grant-type: password
+            scope: openid
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8088/realms/lynx-realm
+            user-name-attribute: preferred_username
+
+# Eureka Client Configuration
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+
+keycloak:
+  admin:
+    username: admin
+    password: admin
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web.client.RestTemplate: DEBUG
+    lynx.auth.logging: DEBUG
+    root: INFO
+    org.springframework.cloud.client.discovery: DEBUG
+    org.springframework.cloud.client.serviceregistry: DEBUG
+    com.netflix.discovery: DEBUG
+    com.netflix.eureka: DEBUG
+
+# Swagger UI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+    version: openapi_3_1
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+    filter: true
+    doc-expansion: none
+    default-models-expand-depth: -1
+    default-model-expand-depth: 2
+    display-request-duration: true
+    syntax-highlight:
+      enabled: true
+      theme: monokai
+  show-actuator: true
+  packages-to-scan: lynx.auth.controller
+  paths-to-match: /**
+  default-consumes-media-type: application/json
+  default-produces-media-type: application/json
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: lynx.auth.controller
+  security:
+    enabled: true
+    basic:
+      enabled: false
+    oauth2:
+      enabled: true
+      flows:
+        password:
+          token-url: http://localhost:8088/realms/lynx-realm/protocol/openid-connect/token
+          scopes:
+            openid: OpenID Connect scope
+            profile: User profile scope
+            email: User email scope
