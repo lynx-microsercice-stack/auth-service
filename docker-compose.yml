@@ -1,6 +1,25 @@
-version: '3.8'
-
 services:
+  auth-service:
+    image: auth-application
+    container_name: auth-application
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak:8080/realms/lynx-realm
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak:8080/realms/lynx-realm/protocol/openid-connect/certs
+      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_KEYCLOAK_ISSUER_URI=http://keycloak:8080/realms/lynx-realm
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_KEYCLOAK_TOKEN_URI=http://keycloak:8080/realms/lynx-realm/protocol/openid-connect/token
+    depends_on:
+      - keycloak
+      - postgres
+      - redis
+    networks:
+      - auth-network
+      - spring-cloud-api-gateway_gateway-network
+
   keycloak:
     image: keycloak/keycloak
     container_name: keycloak
@@ -19,7 +38,7 @@ services:
     depends_on:
       - postgres
     networks:
-      - microservices-network
+      - auth-network
 
   postgres:
     image: postgres:16-alpine
@@ -33,7 +52,7 @@ services:
     volumes:
       - auth_postgres_data:/var/lib/postgresql/data
     networks:
-      - microservices-network
+      - auth-network
 
   redis:
     image: redis:7-alpine
@@ -43,12 +62,14 @@ services:
     volumes:
       - auth_redis_data:/data
     networks:
-      - microservices-network
+      - auth-network
 
 volumes:
   auth_postgres_data:
   auth_redis_data:
 
 networks:
-  microservices-network:
+  auth-network:
     driver: bridge 
+  spring-cloud-api-gateway_gateway-network:
+    external: true

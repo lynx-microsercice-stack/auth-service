@@ -89,10 +89,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/register").permitAll()
                         .requestMatchers("/auth/login").permitAll()
-                        .requestMatchers("/auth/logout").authenticated()
-                        .requestMatchers("/auth/validate").authenticated()
-                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/auth/user").permitAll()
+                        .requestMatchers("/auth/token/client").permitAll()
+
                         // open for swagger docs
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui.html").permitAll()

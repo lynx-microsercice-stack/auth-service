@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -29,6 +30,7 @@ import lynx.auth.dto.request.KeycloakCredentials;
 import lynx.auth.dto.request.KeycloakRegisterRequest;
 import lynx.auth.dto.response.KeycloakRoleResponse;
 import lynx.auth.dto.response.KeycloakTokenResponse;
+import lynx.auth.dto.response.KeycloakUserResponse;
 import lynx.auth.util.KeycloakUriUtil;
 
 @Slf4j
@@ -139,7 +141,7 @@ public class KeycloakService {
         restTemplate.postForEntity(rolesEndpoint, request, Void.class);
     }
 
-    private void deleteUser(String userId) {
+    public void deleteUser(String userId) {
         String adminToken = getAdminToken();
         String deleteEndpoint = KeycloakUriUtil.getAdminUserEndpoint(issuerUri, userId);
 
@@ -203,9 +205,13 @@ public class KeycloakService {
         return jwtAuthentication.getToken();
     }
 
-    public String getUserId() {
+    public KeycloakUserResponse getUserId(String keycloakId) {
         try {
-            return getAccessToken().getSubject();
+            KeycloakUserResponse user = getUserById(keycloakId);
+            if (user == null) {
+                throw new IllegalStateException("User not found with ID: " + keycloakId);
+            }
+            return user;
         } catch (IllegalStateException e) {
             throw new IllegalStateException("Cannot get user ID: User is not authenticated", e);
         }
@@ -284,5 +290,77 @@ public class KeycloakService {
             log.error("Error during logout all: {}", e.getMessage());
             throw new RuntimeException("Failed to logout from all sessions", e);
         }
+    }
+
+    public KeycloakUserResponse getUserById(String userId) {
+        String adminToken = getAdminToken();
+        String userEndpoint = KeycloakUriUtil.getAdminUserEndpoint(issuerUri, userId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        ResponseEntity<KeycloakUserResponse> response = restTemplate.exchange(
+                userEndpoint, HttpMethod.GET, request, KeycloakUserResponse.class);
+
+        return response.getBody();
+    }
+
+    public List<KeycloakUserResponse> getAllUsers() {
+        String adminToken = getAdminToken();
+        String usersEndpoint = KeycloakUriUtil.getAdminUsersEndpoint(issuerUri);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        ResponseEntity<List<KeycloakUserResponse>> response = restTemplate.exchange(
+                usersEndpoint, HttpMethod.GET, request, 
+                new ParameterizedTypeReference<List<KeycloakUserResponse>>() {});
+
+        return response.getBody();
+    }
+
+    public List<KeycloakUserResponse> searchUsers(String searchQuery) {
+        String adminToken = getAdminToken();
+        String usersEndpoint = KeycloakUriUtil.getAdminUsersEndpoint(issuerUri) + "?search=" + searchQuery;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(adminToken);
+
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        ResponseEntity<List<KeycloakUserResponse>> response = restTemplate.exchange(
+                usersEndpoint, HttpMethod.GET, request, 
+                new ParameterizedTypeReference<List<KeycloakUserResponse>>() {});
+
+        return response.getBody();
+    }
+
+    /**
+     * 
+     * @param clientId
+     * @param clientSecret
+     * @return access token for the client
+     */
+    public String getClientToken(final String clientId, final String clientSecret) {
+        String tokenEndpoint = KeycloakUriUtil.getTokenEndpoint(issuerUri);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> map = new LinkedMultiValueMap<>();
+        map.add("grant_type", "client_credentials");
+        map.add("client_id", clientId);
+        map.add("client_secret", clientSecret);
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
+
+        ResponseEntity<KeycloakTokenResponse> response = restTemplate.postForEntity(
+                tokenEndpoint, request, KeycloakTokenResponse.class);
+
+        return Objects.requireNonNull(response.getBody()).getAccess_token();
     }
 } 

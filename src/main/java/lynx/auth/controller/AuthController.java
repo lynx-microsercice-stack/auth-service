@@ -1,5 +1,16 @@
 package lynx.auth.controller;
 
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -8,15 +19,15 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lynx.auth.dto.response.AuthResponse;
+import lombok.extern.slf4j.Slf4j;
+import lynx.auth.common.BaseResponse;
+import lynx.auth.dto.request.ClientTokenRequest;
 import lynx.auth.dto.request.LoginRequest;
 import lynx.auth.dto.request.RegisterRequest;
+import lynx.auth.dto.response.AuthResponse;
+import lynx.auth.dto.response.KeycloakUserResponse;
 import lynx.auth.service.KeycloakService;
 
 @Slf4j
@@ -28,6 +39,9 @@ public class AuthController {
 
     private final KeycloakService keycloakService;
 
+    /**
+     *  ========== REGISTER ==========
+     */
     @Operation(
         summary = "Register a new user",
         description = "Creates a new user account in Keycloak with the specified role"
@@ -40,7 +54,7 @@ public class AuthController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     @PostMapping("/register")
-    public ResponseEntity<String> register(
+    public ResponseEntity<BaseResponse<String>> register(
         @Parameter(description = "User registration details", required = true)
         @Valid @RequestBody RegisterRequest request
     ) {
@@ -52,9 +66,12 @@ public class AuthController {
                 request.getLastName(),
                 request.getRole()
         );
-        return ResponseEntity.ok(userId);
+        return ResponseEntity.ok(BaseResponse.success(userId));
     }
 
+    /**
+     *  ========== LOGIN ==========
+     */
     @Operation(
         summary = "User login",
         description = "Authenticates a user and returns an access token"
@@ -81,6 +98,9 @@ public class AuthController {
         ));
     }
 
+    /**
+     *  ========== LOGOUT ==========
+     */
     @Operation(
         summary = "User logout",
         description = "Logs out the current user and invalidates their token"
@@ -96,6 +116,9 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     *  ========== LOGOUT ALL ==========
+     */
     @Operation(
         summary = "Logout from all sessions",
         description = "Logs out the user from all active sessions and invalidates all their tokens"
@@ -121,6 +144,10 @@ public class AuthController {
         @ApiResponse(responseCode = "401", description = "Invalid or expired token"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
+
+    /**
+     *  ========== VALIDATE TOKEN ==========
+     */
     @PostMapping("/validate")
     public ResponseEntity<String> validate(
         @Parameter(description = "HTTP request containing the Authorization header")
@@ -131,6 +158,19 @@ public class AuthController {
         return ResponseEntity.ok(token);
     }
 
+    /**
+     *  ========== GET CLIENT TOKEN ==========
+     */
+    @PostMapping("/token/client")
+    public ResponseEntity<BaseResponse<Object>> getClientToken(@RequestBody ClientTokenRequest request) {
+        String token = keycloakService.getClientToken(request.getClientId(), request.getClientSecret());
+        
+        return ResponseEntity.ok(BaseResponse.success(token));
+    }
+
+    /**
+     *  ========== GET CURRENT USER ID ==========
+     */
     @Operation(
         summary = "Get current user ID",
         description = "Returns the ID of the currently authenticated user"
@@ -141,9 +181,40 @@ public class AuthController {
         @ApiResponse(responseCode = "401", description = "User not authenticated"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    @GetMapping("/user")
-    public ResponseEntity<String> fetchUser() {
-        String userId = keycloakService.getUserId();
-        return ResponseEntity.ok(userId);
+    @Parameter(description = "Keycloak ID to fetch", required = true, schema = @Schema(type = "string"))
+    @GetMapping("/user/{keycloakId}")
+    public ResponseEntity<BaseResponse<KeycloakUserResponse>> fetchUser(@PathVariable("keycloakId") String keycloakId) {
+        KeycloakUserResponse user = keycloakService.getUserId(keycloakId);
+        return ResponseEntity.ok(BaseResponse.success(user));
+    }
+
+    /**
+     *  ========== FETCH ALL USERS ==========
+     */
+    @Operation(
+        summary = "Fetch all users",
+        description = "Fetches all users from Keycloak"
+    )
+    @GetMapping("/users")
+    public ResponseEntity<BaseResponse<List<KeycloakUserResponse>>> fetchUsers() {
+        var users = keycloakService.getAllUsers();
+        return ResponseEntity.ok(BaseResponse.success(users));
+    }
+
+    @Operation(
+        summary = "Delete user",
+        description = "Deletes a user from Keycloak"
+    )   
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "User deleted successfully"),
+        @ApiResponse(responseCode = "401", description = "User not authenticated"),
+        @ApiResponse(responseCode = "404", description = "User not found"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @Parameter(description = "Keycloak ID to delete", required = true, schema = @Schema(type = "string"))
+    @DeleteMapping("/delete/user/{keycloakId}")
+    public ResponseEntity<BaseResponse<String>> deleteUser(@PathVariable("keycloakId") String keycloakId) {
+        keycloakService.deleteUser(keycloakId);
+        return ResponseEntity.ok(BaseResponse.success("User deleted successfully"));
     }
 } 
